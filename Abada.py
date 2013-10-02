@@ -300,8 +300,8 @@ class DetectionWindow( Qt.QWidget ):
         self.grid.addWidget( Qt.QLabel( "" ), 0, 2, 1, 30 ) 
         self.grid.addWidget( Qt.QLabel( "Event Detection" ), 0, 5, 1, 10 )
         self.grid.addWidget( self.eventDetectMenu, 1, 5, 1, 10 )
-        self.grid.addWidget( Qt.QLabel( "State Detection" ), 0, 20, 1, 10 )
-        self.grid.addWidget( self.stateDetectMenu, 1, 20, 1, 10 )
+        self.grid.addWidget( Qt.QLabel( "State Detection" ), 0, 15, 1, 10 )
+        self.grid.addWidget( self.stateDetectMenu, 1, 15, 1, 10 )
 
         load_file_button = Qt.QPushButton( "Load Files" )
         load_file_button.setToolTip( "If files were saved from the chenooViewer window, will retrieve those files" )
@@ -316,9 +316,17 @@ class DetectionWindow( Qt.QWidget ):
         self.filterInput.setText( "2000" )
         self.grid.addWidget( self.filterCheckBox, 16, 5, 1, 2 )
         self.grid.addWidget( self.filterInput, 16, 6, 1, 2 )
-        self.grid.addWidget( Qt.QLabel( "Cutoff Frequency" ), 16, 8, 1, 4 )
+        self.grid.addWidget( Qt.QLabel( "Cutoff Frequency" ), 16, 8, 1, 5 )
         self.grid.addWidget( self.orderInput, 17, 6, 1, 2 )
-        self.grid.addWidget( Qt.QLabel( "Order" ), 17, 8, 1, 4 )
+        self.grid.addWidget( Qt.QLabel( "Order" ), 17, 8, 1, 5 )
+
+        self.save_to_database = Qt.QCheckBox( "Save Analysis to Database" )
+        self.grid.addWidget( self.save_to_database, 16, 15, 1, 10 )
+
+        self.load_from_database = Qt.QCheckBox( " Try to Load Analysis from Database" )
+        self.grid.addWidget( self.load_from_database, 17, 15, 1, 10 )
+        self.load_from_database.setChecked(True)
+        self.grid.addWidget( Qt.QLabel("(File must be in same directory as Abada.py)"), 18, 15, 1, 10 )
 
         self.analysisButton = Qt.QPushButton( "Analyze" )
         self.grid.addWidget( self.analysisButton, 19, 5 )
@@ -327,11 +335,11 @@ class DetectionWindow( Qt.QWidget ):
         self.grid.addWidget( self.outputButton, 19, 6 )
 
         self.progressBar = Qt.QProgressBar( self )
-        self.grid.addWidget( self.progressBar, 20, 5, 1, 23 )
+        self.grid.addWidget( self.progressBar, 20, 5, 1, 19 )
         self.timer = Qc.QBasicTimer()
 
         self.stopButton = Qt.QPushButton( "Stop" )
-        self.grid.addWidget( self.stopButton, 20, 29 )
+        self.grid.addWidget( self.stopButton, 20, 24 )
         self.connect( self.stopButton, Qc.SIGNAL("clicked()"), self._stop_analysis )
         self._active = False
 
@@ -354,7 +362,7 @@ class DetectionWindow( Qt.QWidget ):
             self.stateDetectorGUI.itemAt( i ).widget().close() 
         self.stateDetector = str(detector)
         self.stateDetectorGUI = self.stateDetectorOptions[ self.stateDetector ].GUI() or self.defaultGrid
-        self.grid.addLayout( self.stateDetectorGUI, 2, 21, 1, 10 )
+        self.grid.addLayout( self.stateDetectorGUI, 2, 15, 1, 10 )
 
     def _load_files( self ):
         ''' Load the files which were saved from querying the database. '''
@@ -368,6 +376,8 @@ class DetectionWindow( Qt.QWidget ):
         while True:
             try:
                 file = str( self.fileList.item( i, 0 ).text() )
+                if file == '':
+                    raise AttributeError
                 files.append( str( self.fileList.item( i, 0 ).text() ) )
                 try:
                     sample = str( self.fileList.item( i, 1 ).text() )
@@ -421,26 +431,43 @@ class DetectionWindow( Qt.QWidget ):
         self._active = True 
         # For every pair of filename, sample name in the table
         for i, ( sample_name, filename ) in enumerate( zip( sample_names, filenames ) ):
-            file = File( filename+".abf" ) # Create a file object for one of the input files
-            file.parse( parser=event_detector )
-            n = len( file.events )
-            sample = smap[ sample_name ]
-            if state_detector != '':
-                for j, event in enumerate( file.events ):
-                    if not self._active:
-                        break
-                    if sample:
-                        event.sample = sample
-                    if order and cutoff:
-                        event.filter( order=order, cutoff=cutoff )
-                    event.parse( parser=state_detector )
-                    self.progressBar.setValue( 1. + i * n + j ) 
-                    self.progressBar.setMaximum( len(filenames )*n )
-                    Qt.qApp.processEvents()
-                    time.sleep( 0.001 )
+            try:
+                db_filename = filename.split("\\")[-1]
+                file = File.from_database( database=DATABASE, host=DATABASE_HOST,
+                                           password=DATABASE_PASSWORD,
+                                           user=DATABASE_USER,
+                                           filename=db_filename,
+                                           eventDetector=event_detector.__class__.__name__,
+                                           eventDetectorParams=repr(event_detector),
+                                           stateDetector=state_detector.__class__.__name__,
+                                           stateDetectorParams=repr(state_detector),
+                                           filterCutoff=cutoff, filterOrder=order )
+            except:
+                file = File( filename+".abf" ) # Create a file object for one of the input files
+                file.parse( parser=event_detector )
+                if state_detector != '':
+                    for j, event in enumerate( file.events ):
+                        if not self._active:
+                            break
+                        if sample:
+                            event.sample = sample
+                        if order and cutoff:
+                            event.filter( order=order, cutoff=cutoff )
+                        event.parse( parser=state_detector )
+                        self.progressBar.setValue( 1. + i * file.n + j ) 
+                        self.progressBar.setMaximum( len(filenames )*file.n )
+                        Qt.qApp.processEvents()
+                        time.sleep( 0.001 )
 
+            sample = smap[ sample_name ]
             files.append( file ) # Add that file to the list of files
             sample.add( file ) # Add the file to the appropriate sample
+
+            if self.save_to_database.checkState() == 2:
+                file.to_database( database=DATABASE, host=DATABASE_HOST,
+                                  password=DATABASE_PASSWORD,
+                                  user=DATABASE_USER )
+
             time.sleep( 0.001 )
             self.progressBar.setValue( i+1 )
             self.progressBar.setMaximum( len(filenames) )
