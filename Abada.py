@@ -740,9 +740,20 @@ class AnalysisWindow( Qt.QWidget ):
         hmm = str( self.hmmDropBox.currentText() )
 
         exp = self.parent.experiment
-        events = exp.get( "events", indices=unmarked )
-        segs = exp.get( "segments", filter_attr="events", indices=unmarked )
-        hmm_states = exp.apply_hmm( hmm=hmm, indices=unmarked )
+        try:
+            events = exp.get( "events", indices=unmarked )
+        except:
+            events = []
+
+        try:
+            segs = exp.get( "segments", filter_attr="events", indices=unmarked )
+        except:
+            segs = []
+
+        try:
+            hmm_states = exp.apply_hmm( hmm=hmm, indices=unmarked )
+        except:
+            hmm_states = []
 
         self.axes = { 'event': { 
                         'Duration (s)': lambda exp: np.array([event.duration for event in events]), 
