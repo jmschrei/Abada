@@ -143,7 +143,7 @@ class ChenooViewer( Qt.QWidget ):
             except:
                 pass
 
-        self.columns = [ column[0] for column in self.db.read( "SHOW COLUMNS IN {}".format( self.table ) ) ]
+        self.columns = [ column[0] for column in self.db.read( "SHOW COLUMNS IN {}".format( self.table ))]
         self.column_inputs = { column: Qt.QLineEdit() for column in self.columns }
         self._search()
         self.inputGrid.setVerticalSpacing(0)
@@ -212,7 +212,8 @@ class ChenooViewer( Qt.QWidget ):
                 if entry[-1] != '*':     # and they're looking for a wildcard, append the wildcard
                     clauses.append( "{column} = '{entry}'".format( column=column, entry=entry ) )
                 else:
-                    clauses.append( "{column} LIKE '%{entry}%'".format( column=column, entry=entry[:-1] ) )
+                    clauses.append( "{column} LIKE '%{entry}%'".format( column=column, 
+                                                                        entry=entry[:-1] ) )
             elif 'float' in column_type or 'int' in column_type:
                 clauses.append( "{column} = {entry}".format( column=column, entry=entry ) )
 
@@ -224,7 +225,9 @@ class ChenooViewer( Qt.QWidget ):
         self.columns = query.strip().split( "SELECT" )[1].split( "FROM" )[0].strip().split(",")
         self.tables = query.strip().split("FROM")[1].split("WHERE")[0].strip().split(",")
         if self.columns == ['*']:
-            column_data = [ [ table+"."+column[0] for column in self.db.read( "SHOW COLUMNS FROM {}".format(table) ) ] for table in self.tables ]
+            column_data = [ [ table+"."+column[0] for column 
+                                in self.db.read( "SHOW COLUMNS FROM {}".format(table) ) ] 
+                                for table in self.tables ]
             self.columns = np.concatenate( column_data )
 
     def _query_database( self ):
@@ -243,7 +246,8 @@ class ChenooViewer( Qt.QWidget ):
 
     def _delete( self ):
         del self.confirmWindow
-        query = "DELETE FROM {table} WHERE {clauses}".format( table=self.table, clauses=self._build_clauses() )
+        query = "DELETE FROM {table} WHERE {clauses}".format( table=self.table, 
+                                                              clauses=self._build_clauses() )
         self.db.delete( query=query )
     
     def _save_files( self ):
@@ -262,9 +266,13 @@ class DetectionWindow( Qt.QWidget ):
     def __init__( self, parent ):
         super( DetectionWindow, self ).__init__( parent )
         self.parent = parent
-        self.eventDetectorOptions = { '': parser(), 'Lambda Parser': lambda_event_parser() }
-        self.stateDetectorOptions = { '': parser(), 'Snakebase Parser': snakebase_parser(), 'Novakker': novakker_parser(), 
-                                      'StatSplit': StatSplit(), 'SpeedyStatSplit': SpeedyStatSplit() }
+        self.eventDetectorOptions = { '': parser(), 
+                                      'Lambda Parser': lambda_event_parser() }
+        self.stateDetectorOptions = { '': parser(), 
+                                      'Snakebase Parser': snakebase_parser(), 
+                                      'Novakker': novakker_parser(), 
+                                      'StatSplit': StatSplit(), 
+                                      'SpeedyStatSplit': SpeedyStatSplit() }
         self.eventDetector = ''
         self.stateDetector = ''
         self.defaultGrid = Qt.QGridLayout()
@@ -322,7 +330,8 @@ class DetectionWindow( Qt.QWidget ):
         self.grid.addWidget( self.stateDetectMenu, 1, 15, 1, 10 )
 
         load_file_button = Qt.QPushButton( "Load Files" )
-        load_file_button.setToolTip( "If files were saved from the chenooViewer window, will retrieve those files" )
+        load_file_button.setToolTip( "If files were saved from the chenooViewer window, \
+                                         will retrieve those files" )
         self.connect( load_file_button, Qc.SIGNAL( "clicked()" ), self._load_files )
         self.grid.addWidget( load_file_button, 20, 0 )
 
@@ -351,7 +360,8 @@ class DetectionWindow( Qt.QWidget ):
         self.load_from_json = Qt.QCheckBox( "Load Analysis From JSON" )
         self.grid.addWidget( self.save_to_json, 16, 15, 1, 10 )
         self.grid.addWidget( self.load_from_json, 17, 15, 1, 10  )
-        self.grid.addWidget( Qt.QLabel( "If you load, .abf files must be in same file as Abada" ), 18, 15, 1, 10 )
+        self.grid.addWidget( Qt.QLabel( "If you load, .abf files must \
+                                            be in same file as Abada" ), 18, 15, 1, 10 )
 
 
         self.metaAnalysis = Qt.QCheckBox( "Only Store Metadata" )
@@ -383,7 +393,8 @@ class DetectionWindow( Qt.QWidget ):
         for i in range( self.eventDetectorGUI.count() ): 
             self.eventDetectorGUI.itemAt( i ).widget().close() 
         self.eventDetector = str(detector)
-        self.eventDetectorGUI = self.eventDetectorOptions[ self.eventDetector ].GUI() or self.defaultGrid
+        self.eventDetectorGUI = self.eventDetectorOptions[self.eventDetector].GUI() /
+                                    or self.defaultGrid
         self.grid.addLayout( self.eventDetectorGUI, 2, 5, 1, 10 )
 
     def _select_state_detector( self, detector ):
@@ -391,7 +402,8 @@ class DetectionWindow( Qt.QWidget ):
         for i in range( self.stateDetectorGUI.count() ): 
             self.stateDetectorGUI.itemAt( i ).widget().close() 
         self.stateDetector = str(detector)
-        self.stateDetectorGUI = self.stateDetectorOptions[ self.stateDetector ].GUI() or self.defaultGrid
+        self.stateDetectorGUI = self.stateDetectorOptions[self.stateDetector].GUI() / 
+                                    or self.defaultGrid
         self.grid.addLayout( self.stateDetectorGUI, 2, 15, 1, 10 )
 
     def _load_files( self ):
@@ -529,7 +541,8 @@ class DetectionWindow( Qt.QWidget ):
             # Create a list of references to all the states
             states = np.concatenate( [ event.states for event in events ] )
             # Create an experiment that inc   ludes state counts
-            self.parent.experiment = Experiment( files=files, samples=samples, events=events, states=states )
+            self.parent.experiment = Experiment( files=files, samples=samples, 
+                                                events=events, states=states )
         except:
             # Create an experiment that does not include state counts
             self.parent.experiment = Experiment( files=files, samples=samples, events=events ) 
@@ -585,11 +598,11 @@ class EventViewerWindow( Qt.QWidget ):
         grid.addWidget( self.markButton, 5, 9 )
 
         nextPlotButton = Qt.QPushButton( "Plot Next" )
-        self.connect( nextPlotButton, Qc.SIGNAL( "clicked()" ), lambda: self._move( direction=1 ) )
+        self.connect(nextPlotButton, Qc.SIGNAL( "clicked()" ), lambda: self._move( direction=1 ) )
         previousPlotButton = Qt.QPushButton( "Plot Previous" )
-        self.connect( previousPlotButton, Qc.SIGNAL( "clicked()" ), lambda: self._move( direction=-1 ) )
+        self.connect(previousPlotButton, Qc.SIGNAL("clicked()"), lambda: self._move(direction=-1))
         currentPlotButton = Qt.QPushButton( "Replot" )
-        self.connect( currentPlotButton, Qc.SIGNAL( "clicked()"), self._plot )
+        self.connect(currentPlotButton, Qc.SIGNAL( "clicked()"), self._plot )
 
         grid.addWidget( nextPlotButton, 5, 0  )
         grid.addWidget( previousPlotButton, 6, 0 )
@@ -655,7 +668,8 @@ class EventViewerWindow( Qt.QWidget ):
         direction as either -1 or 1. 
         '''
         assert np.abs( direction ) == 1
-        if ( self.i > 0 or direction == 1 ) and ( self.i < self.parent.experiment.event_count - 1 or direction == -1 ):
+        n = self.parent.experiment.event_count
+        if ( self.i > 0 or direction == 1 ) and ( self.i < n - 1 or direction == -1 ):
             self.i += direction
         self._plot()
 
@@ -677,7 +691,7 @@ class EventViewerWindow( Qt.QWidget ):
 
         if event != None:
             # If Black and White plot selected, or no states are stored to the event
-            if self.colorGroup.checkedId() == 0 or ( event.n == 'N/A' and self.colorGroup.checkedId() == 1 ):
+            if self.colorGroup.checkedId() == 0 or event.n == 'N/A':
                 event.plot( color='k' )
 
             # If color was selected, and states are present in the event
@@ -689,7 +703,9 @@ class EventViewerWindow( Qt.QWidget ):
                 hmm = hmm_factory[ str(self.hmmDropBox.currentText() ) ]
                 event.plot( hmm=hmm, color='hmm' )
 
-            plt.title( "Event {i}: in {filename} at {time}s".format( i = self.i+1, filename = event.file.filename, time = round(event.start, 2) ) )
+            plt.title( "Event {i}: in {filename} at {time}s".format( i=self.i+1, 
+                                                                     filename=event.file.filename, 
+                                                                     time=round(event.start, 2)))
             self.canvas.draw()
 
             self.eventFilename.setText( Qc.QString( event.file.filename ) )
@@ -714,7 +730,8 @@ class AnalysisWindow( Qt.QWidget ):
         self.parent = parent
         self.last_datatype = None # Store the last attempt to plot, in case only recoloring is needed
         try: # Find indices which are unmarked by reversing the marked list
-            self.parent.unmarked_event_indices = [ i for i in xrange( self.parent.experiment.event_count ) 
+            n = self.parent.experiment.event_count
+            self.parent.unmarked_event_indices = [ i for i in xrange( n ) 
                                                    if i not in self.parent.marked_event_indices ]
         except: # If no marked list exists, or no experiment exists, do not plot anything
             self.parent.unmarked_event_indices = [] 
@@ -808,12 +825,17 @@ class AnalysisWindow( Qt.QWidget ):
         self.colorByDropdown.addItem( "Uniform Cyan" )
         self.colorByDropdown.addItem( "Filename" )
         self.colorByDropdown.addItem( "Sample" )
-        self.colorByDropdown.activated[ str ].connect( lambda: self._color( color_scheme = str( self.colorByDropdown.currentText() ) ) ) 
+
+        color_scheme = str( self.colorByDropdown.currentText() )
+        self.colorByDropdown.activated[str].connect(lambda:self._color(color_scheme=color_scheme)) 
         grid.addWidget( self.colorByDropdown, 19, 6, 1, 3)
 
-        self.connect( self.event_display, Qc.SIGNAL( "clicked()" ), lambda: self._plot( datatype = 'event' ) )
-        self.connect( self.state_display, Qc.SIGNAL( "clicked()" ), lambda: self._plot( datatype = 'state' ) )
-        self.connect( self.hmm_display, Qc.SIGNAL( "clicked()" ), lambda: self._plot( datatype = 'hmm' ) )
+        self.connect( self.event_display, Qc.SIGNAL( "clicked()" ), 
+                        lambda: self._plot( datatype = 'event' ) )
+        self.connect( self.state_display, Qc.SIGNAL( "clicked()" ), \
+                        lambda: self._plot( datatype = 'state' ) )
+        self.connect( self.hmm_display, Qc.SIGNAL( "clicked()" ), 
+                        lambda: self._plot( datatype = 'hmm' ) )
 
         grid.addWidget( self.canvas, 0, 0, 25, 5 )
         grid.addWidget( self.toolbar, 25, 0, 1, 5 )
@@ -1044,7 +1066,8 @@ class AlignmentWindow( Qt.QWidget ):
         self.alignment.align( strategy='one-vs-all', model_id=model_id, skip=skip, backslip=backslip )
         self.alignment.plot()
         score = str(round(self.alignment.score, 4))
-        plt.title( "Alignment with Event {id} as Model-- Score: {score}".format( id=model_id, score=score ))
+        plt.title( "Alignment with Event {id} as Model-- Score: {score}".format( id=model_id, 
+                                                                                 score=score ))
         self.score.setText(str(round(self.alignment.score,4)))
         self.canvas.draw()
 
@@ -1074,7 +1097,7 @@ class MainPage( Qt.QMainWindow ):
 
         detectionViewer = Qt.QAction( Qt.QIcon( r'thumbs\aW.png' ), 'Detection', self )
         detectionViewer.setStatusTip( 'Analysis Pipeline Viewer' )
-        detectionViewer.triggered.connect( lambda: self.setCentralWidget( DetectionWindow( self ) ) ) 
+        detectionViewer.triggered.connect( lambda: self.setCentralWidget( DetectionWindow(self)))   
 
         eventViewer = Qt.QAction( Qt.QIcon( r'thumbs\eV.png' ), 'Event Viewer', self )
         eventViewer.setStatusTip( 'Event Viewer' )
