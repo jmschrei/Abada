@@ -330,8 +330,6 @@ class DetectionWindow( Qt.QWidget ):
         self.grid.addWidget( self.stateDetectMenu, 1, 15, 1, 10 )
 
         load_file_button = Qt.QPushButton( "Load Files" )
-        load_file_button.setToolTip( "If files were saved from the chenooViewer window, \
-                                         will retrieve those files" )
         self.connect( load_file_button, Qc.SIGNAL( "clicked()" ), self._load_files )
         self.grid.addWidget( load_file_button, 20, 0 )
 
@@ -360,8 +358,8 @@ class DetectionWindow( Qt.QWidget ):
         self.load_from_json = Qt.QCheckBox( "Load Analysis From JSON" )
         self.grid.addWidget( self.save_to_json, 16, 15, 1, 10 )
         self.grid.addWidget( self.load_from_json, 17, 15, 1, 10  )
-        self.grid.addWidget( Qt.QLabel( "If you load, .abf files must \
-                                            be in same file as Abada" ), 18, 15, 1, 10 )
+        self.grid.addWidget( Qt.QLabel( "If you load, files must be in same file as Abada" ), 
+                                                                                18, 15, 1, 10 )
 
 
         self.metaAnalysis = Qt.QCheckBox( "Only Store Metadata" )
@@ -393,8 +391,7 @@ class DetectionWindow( Qt.QWidget ):
         for i in range( self.eventDetectorGUI.count() ): 
             self.eventDetectorGUI.itemAt( i ).widget().close() 
         self.eventDetector = str(detector)
-        self.eventDetectorGUI = self.eventDetectorOptions[self.eventDetector].GUI() /
-                                    or self.defaultGrid
+        self.eventDetectorGUI = self.eventDetectorOptions[str(detector)].GUI() or self.defaultGrid
         self.grid.addLayout( self.eventDetectorGUI, 2, 5, 1, 10 )
 
     def _select_state_detector( self, detector ):
@@ -402,8 +399,7 @@ class DetectionWindow( Qt.QWidget ):
         for i in range( self.stateDetectorGUI.count() ): 
             self.stateDetectorGUI.itemAt( i ).widget().close() 
         self.stateDetector = str(detector)
-        self.stateDetectorGUI = self.stateDetectorOptions[self.stateDetector].GUI() / 
-                                    or self.defaultGrid
+        self.stateDetectorGUI = self.stateDetectorOptions[str(detector)].GUI() or self.defaultGrid
         self.grid.addLayout( self.stateDetectorGUI, 2, 15, 1, 10 )
 
     def _load_files( self ):
