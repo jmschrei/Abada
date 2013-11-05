@@ -268,13 +268,13 @@ class DetectionWindow( Qt.QWidget ):
         self.parent = parent
         self.eventDetectorOptions = { '': parser(), 
                                       'Lambda Parser': lambda_event_parser() }
-        self.stateDetectorOptions = { '': parser(), 
+        self.segmenterOptions =     { '': parser(), 
                                       'Snakebase Parser': snakebase_parser(), 
                                       'Novakker': novakker_parser(), 
                                       'StatSplit': StatSplit(), 
                                       'SpeedyStatSplit': SpeedyStatSplit() }
         self.eventDetector = ''
-        self.stateDetector = ''
+        self.segmenter = ''
         self.defaultGrid = Qt.QGridLayout()
         self.defaultGrid.addWidget( Qt.QLabel( "Default Settings Applied" ), 0, 0 )
                 
@@ -314,20 +314,20 @@ class DetectionWindow( Qt.QWidget ):
         self.eventDetectMenu.activated[ str ].connect( self._select_event_detector ) 
         for option in self.eventDetectorOptions:
             self.eventDetectMenu.addItem( option )
-        self.stateDetectMenu = Qt.QComboBox()
-        self.stateDetectMenu.activated[ str ].connect( self._select_state_detector )
-        for option in self.stateDetectorOptions:
-            self.stateDetectMenu.addItem( option )
+        self.segmenterMenu = Qt.QComboBox()
+        self.segmenterMenu.activated[ str ].connect( self._select_segmenter )
+        for option in self.segmenterOptions:
+            self.segmenterMenu.addItem( option )
 
         self.eventDetectorGUI = self.defaultGrid
-        self.stateDetectorGUI = self.defaultGrid
+        self.segmenterGUI = self.defaultGrid
 
         self.grid.addWidget( self.fileList, 0, 0, 20, 1 )
         self.grid.addWidget( Qt.QLabel( "" ), 0, 2, 1, 30 ) 
         self.grid.addWidget( Qt.QLabel( "Event Detection" ), 0, 5, 1, 10 )
         self.grid.addWidget( self.eventDetectMenu, 1, 5, 1, 10 )
-        self.grid.addWidget( Qt.QLabel( "State Detection" ), 0, 15, 1, 10 )
-        self.grid.addWidget( self.stateDetectMenu, 1, 15, 1, 10 )
+        self.grid.addWidget( Qt.QLabel( "Segmenter" ), 0, 15, 1, 10 )
+        self.grid.addWidget( self.segmenterMenu, 1, 15, 1, 10 )
 
         load_file_button = Qt.QPushButton( "Load Files" )
         self.connect( load_file_button, Qc.SIGNAL( "clicked()" ), self._load_files )
@@ -361,13 +361,10 @@ class DetectionWindow( Qt.QWidget ):
         self.grid.addWidget( Qt.QLabel( "If you load, files must be in same file as Abada" ), 
                                                                                 18, 15, 1, 10 )
 
-
         self.metaAnalysis = Qt.QCheckBox( "Only Store Metadata" )
         self.grid.addWidget( self.metaAnalysis, 18, 5, 1, 15 )
         self.analysisButton = Qt.QPushButton( "Analyze" )
         self.grid.addWidget( self.analysisButton, 19, 5 )
-
-
 
         self.outputButton = Qt.QPushButton( "Output" )
         self.grid.addWidget( self.outputButton, 19, 6 )
@@ -394,13 +391,13 @@ class DetectionWindow( Qt.QWidget ):
         self.eventDetectorGUI = self.eventDetectorOptions[str(detector)].GUI() or self.defaultGrid
         self.grid.addLayout( self.eventDetectorGUI, 2, 5, 1, 10 )
 
-    def _select_state_detector( self, detector ):
-        ''' This is what occurs when a state detector is selected. ''' 
-        for i in range( self.stateDetectorGUI.count() ): 
-            self.stateDetectorGUI.itemAt( i ).widget().close() 
-        self.stateDetector = str(detector)
-        self.stateDetectorGUI = self.stateDetectorOptions[str(detector)].GUI() or self.defaultGrid
-        self.grid.addLayout( self.stateDetectorGUI, 2, 15, 1, 10 )
+    def _select_segmenter( self, detector ):
+        ''' This is what occurs when a segmenter is selected. ''' 
+        for i in range( self.segmenterGUI.count() ): 
+            self.segmenterGUI.itemAt( i ).widget().close() 
+        self.segmenter = str(detector)
+        self.segmenterGUI = self.segmenterOptions[str(detector)].GUI() or self.defaultGrid
+        self.grid.addLayout( self.segmenterGUI, 2, 15, 1, 10 )
 
     def _load_files( self ):
         ''' Load the files which were saved from querying the database. '''
@@ -437,7 +434,7 @@ class DetectionWindow( Qt.QWidget ):
     def _analyze( self ):
         ''' 
         Analyze each file by calling event detectors on each file, then by possibly
-        calling state detectors on each event. This stores all of the information to 
+        calling segmenters on each event. This stores all of the information to 
         the experiment graph.  
         '''
         self.parent.experiment.delete()
@@ -446,9 +443,9 @@ class DetectionWindow( Qt.QWidget ):
         event_detector = self.eventDetectorOptions[ self.eventDetector ]
         event_detector.set_params()
 
-        # Load the state detector and set the appropriate parameters
-        state_detector = self.stateDetectorOptions[ self.stateDetector ]
-        state_detector.set_params()
+        # Load the segmenter and set the appropriate parameters
+        segmenter = self.segmenterOptions[ self.segmenter ]
+        segmenter.set_params()
 
         # Read in the file and appropriate sample names 
         filenames, sample_names = self._read_input()
@@ -481,8 +478,8 @@ class DetectionWindow( Qt.QWidget ):
                                                filename=db_filename,
                                                eventDetector=event_detector.__class__.__name__,
                                                eventDetectorParams=repr(event_detector),
-                                               stateDetector=state_detector.__class__.__name__,
-                                               stateDetectorParams=repr(state_detector),
+                                               segmenter=segmenter.__class__.__name__,
+                                               segmenterParams=repr(segmenter),
                                                filterCutoff=cutoff, filterOrder=order )
                 elif self.load_from_json.checkState() == 2:
                     if filename.endswith( "json" ):
@@ -491,10 +488,11 @@ class DetectionWindow( Qt.QWidget ):
                         file = File.from_json( filename+".json" )
                 else:
                     raise Exception()
+
             except:
                 file = File( filename+".abf" ) # Create a file object for one of the input files
                 file.parse( parser=event_detector )
-                if state_detector != '':
+                if segmenter != '':
                     for j, event in enumerate( file.events ):
                         if not self._active:
                             break
@@ -502,7 +500,7 @@ class DetectionWindow( Qt.QWidget ):
                             event.sample = sample
                         if order and cutoff:
                             event.filter( order=order, cutoff=cutoff )
-                        event.parse( parser=state_detector )
+                        event.parse( parser=segmenter )
                         self.progressBar.setValue( 1. + i * file.n + j ) 
                         self.progressBar.setMaximum( len(filenames )*file.n )
                         Qt.qApp.processEvents()
@@ -522,23 +520,22 @@ class DetectionWindow( Qt.QWidget ):
 
             time.sleep( 0.001 )
             self.progressBar.setValue( i+1 )
+            self.fileList.setItem( i, 2, Qt.QTableWidgetItem( str( file.n ) ) )
+            self.parent.input_files_n.append( file.n )
             self.progressBar.setMaximum( len(filenames) )
             Qt.qApp.processEvents()
             if not self._active:
                 break
 
-            self.fileList.setItem( i, 2, Qt.QTableWidgetItem( str( file.n ) ) )
-            self.parent.input_files_n.append( file.n )
-
         # Create a list of references to all the events 
         events = np.concatenate( [ file.events for file in files ] )
 
-        try: # If a state detector was selected
-            # Create a list of references to all the states
-            states = np.concatenate( [ event.states for event in events ] )
+        try: # If a segmenter was selected
+            # Create a list of references to all the segments
+            segments = np.concatenate( [ event.segments for event in events ] )
             # Create an experiment that inc   ludes state counts
             self.parent.experiment = Experiment( files=files, samples=samples, 
-                                                events=events, states=states )
+                                                events=events, segments=segments )
         except:
             # Create an experiment that does not include state counts
             self.parent.experiment = Experiment( files=files, samples=samples, events=events ) 
@@ -551,29 +548,29 @@ class DetectionWindow( Qt.QWidget ):
         events = exp.get( "events" ) # Store references to all the events
         with open( "abada_event_data.csv", "w" ) as out:
             # Write a csv file out that contains all the data
-            out.write( "Filename,Sample,Start,Mean (pA),STD,Duration (s),State Count\n")
+            out.write( "Filename,Sample,Start,Mean (pA),STD,Duration (s),Segment Count\n")
             for event in events:
-                out.write( "{filename},{sample},{start},{mean},{std},{duration},{states}\n".format(
+                out.write("{filename},{sample},{start},{mean},{std},{duration},{segs}\n".format(
                                     filename=event.file.filename,
                                     sample=event.sample.label,
                                     start=event.start,
                                     mean=event.mean,
                                     std=event.std,
                                     duration=event.duration,
-                                    states=event.n ) )
+                                    segs=event.n ) )
 
-        states = exp.get( "states" ) # Store references to all the states
-        with open( "abada_state_data.csv", "w" ) as out:
+        segments = exp.get( "segments" ) # Store references to all the states
+        with open( "abada_segment_data.csv", "w" ) as out:
             # Write a csv file that contains all states 
             out.write( "Filename,Sample,Mean (pA),Start,STD,Duration (s)\n")
-            for state in states:
+            for segment in segments:
                 out.write( "{filename},{sample},{start},{mean},{std},{duration}\n".format(
-                                filename=state.event.file.filename,
-                                sample=state.event.sample.label,
-                                start=state.start + state.event.start,
-                                mean=state.mean,
-                                std=state.std,
-                                duration=state.duration ) )
+                                filename=segment.event.file.filename,
+                                sample=segment.event.sample.label,
+                                start=segment.start + segment.event.start,
+                                mean=segment.mean,
+                                std=segment.std,
+                                duration=segment.duration ) )
 
 class EventViewerWindow( Qt.QWidget ):
     def __init__( self, parent ):
@@ -635,7 +632,7 @@ class EventViewerWindow( Qt.QWidget ):
 
         grid.addWidget( Qt.QLabel( "Mean: " ), 5, 4 )
         grid.addWidget( Qt.QLabel( "Duration: "), 6, 4 )
-        grid.addWidget( Qt.QLabel( "State Count: " ), 7, 4 )
+        grid.addWidget( Qt.QLabel( "Segment Count: " ), 7, 4 )
 
         self.eventMean = Qt.QLabel( "" )
         self.eventDuration = Qt.QLabel( "" )
@@ -732,26 +729,31 @@ class AnalysisWindow( Qt.QWidget ):
         except: # If no marked list exists, or no experiment exists, do not plot anything
             self.parent.unmarked_event_indices = [] 
 
+        self.hmmDropBox = Qt.QComboBox()
+        for name in hmm_factory.keys():
+            self.hmmDropBox.addItem( name )
+
         # Store the functions which gather statistical information as lambda expressions requiring
         # two keys to get to it-- the type and the statistical information. 
 
         unmarked = self.parent.unmarked_event_indices
         hmm = str( self.hmmDropBox.currentText() )
 
+        exp = self.parent.experiment
         events = exp.get( "events", indices=unmarked )
-        states = exp.get( "states", filter_attrs="events", indices=unmarked )
+        segs = exp.get( "segments", filter_attr="events", indices=unmarked )
         hmm_states = exp.apply_hmm( hmm=hmm, indices=unmarked )
 
         self.axes = { 'event': { 
                         'Duration (s)': lambda exp: np.array([event.duration for event in events]), 
                         'Mean (pA)': lambda exp: np.array([event.mean for event in events]),
-                        'State Count': lambda exp: np.array([event.n for event in events]),
+                        'Segment Count': lambda exp: np.array([event.n for event in events]),
                         'Count': None
                         },
-                      'state': {
-                        'Duration (s)': lambda exp: np.array([state.duration for state in states]),
-                        'Mean (pA)': lambda exp: np.array([state.mean for state in states]),
-                        'STD (pA)' : lambda exp: np.array([state.std for state in states]),
+                      'segment': {
+                        'Duration (s)': lambda exp: np.array( [seg.duration for seg in segs] ),
+                        'Mean (pA)': lambda exp: np.array( [seg.mean for seg in segs]),
+                        'STD (pA)' : lambda exp: np.array( [seg.std for seg in segs] ),
                         'Count': None
                         },
                       'hmm': {
@@ -769,9 +771,9 @@ class AnalysisWindow( Qt.QWidget ):
         self.event_display = Qt.QPushButton( "Plot!" )
 
         # Initiate the state plotting dropdown boxes
-        self.state_xaxis = self._init_axis( plot_type='state' )
-        self.state_yaxis = self._init_axis( plot_type='state' )
-        self.state_display = Qt.QPushButton( "Plot!" )
+        self.segment_xaxis = self._init_axis( plot_type='segment' )
+        self.segment_yaxis = self._init_axis( plot_type='segment' )
+        self.segment_display = Qt.QPushButton( "Plot!" )
 
         # Initiate the HMM plotting dropdown boxes 
         self.hmm_xaxis = self._init_axis( plot_type='hmm' )
@@ -793,20 +795,17 @@ class AnalysisWindow( Qt.QWidget ):
 
         grid.addWidget( Divider(), 5, 5, 1, 5 )
 
-        grid.addWidget( Qt.QLabel( "Plot States" ), 6, 6 )
+        grid.addWidget( Qt.QLabel( "Plot Segments" ), 6, 6 )
         grid.addWidget( Qt.QLabel( "X Axis: " ), 7, 6 )
         grid.addWidget( Qt.QLabel( "Y Axis: " ), 8, 6 )
-        grid.addWidget( self.state_xaxis, 7, 7 )
-        grid.addWidget( self.state_yaxis, 8, 7 )
-        grid.addWidget( self.state_display, 9, 7 )
+        grid.addWidget( self.segment_xaxis, 7, 7 )
+        grid.addWidget( self.segment_yaxis, 8, 7 )
+        grid.addWidget( self.segment_display, 9, 7 )
 
         grid.addWidget( Divider(), 11, 5, 1, 5 )
 
         grid.addWidget( Qt.QLabel( "Plot HMM States" ), 12, 6 )
         grid.addWidget( Qt.QLabel( "HMM:" ), 13, 6 )
-        self.hmmDropBox = Qt.QComboBox()
-        for name in hmm_factory.keys():
-            self.hmmDropBox.addItem( name )
         grid.addWidget( self.hmmDropBox, 13, 7 )
 
         grid.addWidget( Qt.QLabel( "X Axis: " ), 14, 6 )
@@ -822,14 +821,14 @@ class AnalysisWindow( Qt.QWidget ):
         self.colorByDropdown.addItem( "Filename" )
         self.colorByDropdown.addItem( "Sample" )
 
-        color_scheme = str( self.colorByDropdown.currentText() )
-        self.colorByDropdown.activated[str].connect(lambda:self._color(color_scheme=color_scheme)) 
+        color = lambda: self._color( color_scheme = str( self.colorByDropdown.currentText()))
+        self.colorByDropdown.activated[str].connect( color ) 
         grid.addWidget( self.colorByDropdown, 19, 6, 1, 3)
 
         self.connect( self.event_display, Qc.SIGNAL( "clicked()" ), 
                         lambda: self._plot( datatype = 'event' ) )
-        self.connect( self.state_display, Qc.SIGNAL( "clicked()" ), \
-                        lambda: self._plot( datatype = 'state' ) )
+        self.connect( self.segment_display, Qc.SIGNAL( "clicked()" ), \
+                        lambda: self._plot( datatype = 'segment' ) )
         self.connect( self.hmm_display, Qc.SIGNAL( "clicked()" ), 
                         lambda: self._plot( datatype = 'hmm' ) )
 
@@ -847,7 +846,7 @@ class AnalysisWindow( Qt.QWidget ):
         '''
         The plotting function. Is responsible for gathering inputs from all input widgets, and
         then plotting those things. Can take in a 'color' argument indicating how to color the
-        points that it sees. Datatype refers to either event, state, or hmm, and is indicated
+        points that it sees. Datatype refers to either event, segments, or hmm, and is indicated
         by which 'plot' button was pressed on the GUI.
         '''
         # Wipe the current screen, but then allow overlapping plots
@@ -859,10 +858,10 @@ class AnalysisWindow( Qt.QWidget ):
         if datatype == 'event':
             xaxis = str( self.event_xaxis.currentText() )
             yaxis = str( self.event_yaxis.currentText() )
-        # If plotting states, get input from the state widgets
-        elif datatype == 'state':
-            xaxis = str( self.state_xaxis.currentText() )
-            yaxis = str( self.state_yaxis.currentText() )
+        # If plotting segments, get input from the segment widgets
+        elif datatype == 'segment':
+            xaxis = str( self.segment_xaxis.currentText() )
+            yaxis = str( self.segment_yaxis.currentText() )
         # If plotting hmm states, get input from those widgets
         elif datatype == 'hmm':
             xaxis = str( self.hmm_xaxis.currentText() )
@@ -973,7 +972,7 @@ class AnalysisWindow( Qt.QWidget ):
         exp = self.parent.experiment
         indices = self.parent.unmarked_event_indices
         events = exp.get( "events", indices=indices )
-        states = exp.get( "states", filter_attr="events", indices=indices )
+        segments = exp.get( "segments", filter_attr="events", indices=indices )
 
         # A 10 color color-cycle, assuming that there are only 10 possible groups
         color_cycle = [ 'r', 'b', 'g', 'm', 'c', 'w', 'k', 'y', '0.25', '0.75' ]
@@ -988,8 +987,8 @@ class AnalysisWindow( Qt.QWidget ):
             self.lmap = { value: key for key, value in cmap.items() }
             if self.last_datatype == 'event':
                 colors = np.array( [ cmap[ event.file.filename ] for event in events ] )
-            elif self.last_datatype == 'state': 
-                colors = np.array( [ cmap[ state.event.file.filename ] for state in states ] )
+            elif self.last_datatype == 'segment': 
+                colors = np.array( [ cmap[ seg.event.file.filename ] for seg in segments ] )
 
         # If the user selects the sample grouping..
         elif color_scheme == 'Sample':
@@ -998,8 +997,8 @@ class AnalysisWindow( Qt.QWidget ):
             self.lmap = { value: key for key, value in cmap.items() }
             if self.last_datatype == 'event':
                 colors = np.array( [ cmap[ event.sample.label ] for event in events ] )
-            elif self.last_datatype == 'state':
-                colors = np.array( [ cmap[ state.event.sample.label ] for state in states ] )
+            elif self.last_datatype == 'segment':
+                colors = np.array( [ cmap[ seg.event.sample.label ] for seg in segments ] )
 
         # Call plot again, giving an explicit color mapping
         self._plot( self.last_datatype, colors )
