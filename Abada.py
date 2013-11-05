@@ -1,3 +1,4 @@
+#! usr/bin/python
 # ChenooViewer.py
 # Contact: Jacob Schreiber
 #			jmschrei@soe.ucsc.edu
@@ -6,6 +7,8 @@
 #   * numpy
 #   * matplotlib
 #   * PyPore
+#   * mySQLdb
+#   * PyQt4
 #
 # Please view README for tutorial.
 
@@ -281,8 +284,30 @@ class DetectionWindow( Qt.QWidget ):
         self.fileList.resizeColumnsToContents()
         # Empty the widget
         self.fileList.setItem( 0, 0, Qt.QTableWidgetItem( "" ) )
-        for i, filename in enumerate( self.parent.input_files ):
-            self.fileList.setItem( i, 0, Qt.QTableWidgetItem( str( filename ) ) )
+
+        try:
+            print parent.input_files
+            print parent.input_files_samples
+            print parent.input_files_n
+        except:
+            print "herp"
+
+        for i in xrange( len( parent.input_files) ):
+            try:
+                fileWidget = Qt.QTableWidgetItem( str( parent.input_files[i]))
+                self.fileList.setItem( i, 0, fileWidget )
+            except:
+                continue
+            try:
+                sampleWidget = Qt.QTableWidgetItem( str( parent.input_files_samples[i]))
+                self.fileList.setItem( i, 1, sampleWidget )
+            except:
+                pass
+            try:
+                nWidget = Qt.QTableWidgetItem( str( parent.input_files_n[i]))
+                self.fileList.setItem( i, 2, nWidget )
+            except:
+                pass
 
         self.eventDetectMenu = Qt.QComboBox()
         self.eventDetectMenu.activated[ str ].connect( self._select_event_detector ) 
@@ -308,28 +333,40 @@ class DetectionWindow( Qt.QWidget ):
         self.connect( load_file_button, Qc.SIGNAL( "clicked()" ), self._load_files )
         self.grid.addWidget( load_file_button, 20, 0 )
 
-        self.grid.addWidget( Qt.QLabel( "Bessel Filter Options" ), 15, 5, 1, 10 )
+        self.grid.addWidget( Qt.QLabel( "Bessel Filter Options" ), 12, 5, 1, 10 )
         self.filterCheckBox = Qt.QCheckBox( "Filter Events" )
         self.orderInput = Qt.QLineEdit()
         self.orderInput.setText( "1" )
         self.filterInput = Qt.QLineEdit()
         self.filterInput.setText( "2000" )
-        self.grid.addWidget( self.filterCheckBox, 16, 5, 1, 2 )
-        self.grid.addWidget( self.filterInput, 16, 6, 1, 2 )
-        self.grid.addWidget( Qt.QLabel( "Cutoff Frequency" ), 16, 8, 1, 5 )
-        self.grid.addWidget( self.orderInput, 17, 6, 1, 2 )
-        self.grid.addWidget( Qt.QLabel( "Order" ), 17, 8, 1, 5 )
+        self.grid.addWidget( self.filterCheckBox, 13, 5, 1, 2 )
+        self.grid.addWidget( self.filterInput, 13, 6, 1, 2 )
+        self.grid.addWidget( Qt.QLabel( "Cutoff Frequency" ), 13, 8, 1, 5 )
+        self.grid.addWidget( self.orderInput, 14, 6, 1, 2 )
+        self.grid.addWidget( Qt.QLabel( "Order" ), 14, 8, 1, 5 )
 
+        self.grid.addWidget( Qt.QLabel("Database Options"), 12, 15, 1, 10 )
         self.save_to_database = Qt.QCheckBox( "Save Analysis to Database" )
-        self.grid.addWidget( self.save_to_database, 16, 15, 1, 10 )
+        self.grid.addWidget( self.save_to_database, 13, 15, 1, 10 )
 
-        self.load_from_database = Qt.QCheckBox( " Try to Load Analysis from Database" )
-        self.grid.addWidget( self.load_from_database, 17, 15, 1, 10 )
+        self.load_from_database = Qt.QCheckBox( "Try to Load Analysis from Database" )
+        self.grid.addWidget( self.load_from_database, 14, 15, 1, 10 )
         self.load_from_database.setChecked(True)
-        self.grid.addWidget( Qt.QLabel("(File must be in same directory as Abada.py)"), 18, 15, 1, 10 )
 
+        self.grid.addWidget( Qt.QLabel( "JSON Options"), 15, 15, 1, 10 )
+        self.save_to_json = Qt.QCheckBox( "Save Analysis to JSON" )
+        self.load_from_json = Qt.QCheckBox( "Load Analysis From JSON" )
+        self.grid.addWidget( self.save_to_json, 16, 15, 1, 10 )
+        self.grid.addWidget( self.load_from_json, 17, 15, 1, 10  )
+        self.grid.addWidget( Qt.QLabel( "If you load, .abf files must be in same file as Abada" ), 18, 15, 1, 10 )
+
+
+        self.metaAnalysis = Qt.QCheckBox( "Only Store Metadata" )
+        self.grid.addWidget( self.metaAnalysis, 18, 5, 1, 15 )
         self.analysisButton = Qt.QPushButton( "Analyze" )
         self.grid.addWidget( self.analysisButton, 19, 5 )
+
+
 
         self.outputButton = Qt.QPushButton( "Output" )
         self.grid.addWidget( self.outputButton, 19, 6 )
@@ -388,6 +425,8 @@ class DetectionWindow( Qt.QWidget ):
                     samples.append("Aggregate Data")
             except AttributeError:
                 self.parent.input_files = files
+                self.parent.input_files_samples = samples
+                self.parent.input_files_n = []
                 return files, samples 
             i += 1
 
@@ -431,17 +470,27 @@ class DetectionWindow( Qt.QWidget ):
         self._active = True 
         # For every pair of filename, sample name in the table
         for i, ( sample_name, filename ) in enumerate( zip( sample_names, filenames ) ):
+            sample = smap[ sample_name ]
             try:
-                db_filename = filename.split("\\")[-1]
-                file = File.from_database( database=DATABASE, host=DATABASE_HOST,
-                                           password=DATABASE_PASSWORD,
-                                           user=DATABASE_USER,
-                                           filename=db_filename,
-                                           eventDetector=event_detector.__class__.__name__,
-                                           eventDetectorParams=repr(event_detector),
-                                           stateDetector=state_detector.__class__.__name__,
-                                           stateDetectorParams=repr(state_detector),
-                                           filterCutoff=cutoff, filterOrder=order )
+                if self.load_from_database.checkState() == 2:
+                    db_filename = filename.split("\\")[-1]
+                    file = File.from_database( database=DATABASE, host=DATABASE_HOST,
+                                               password=DATABASE_PASSWORD,
+                                               user=DATABASE_USER,
+                                               filename=db_filename,
+                                               eventDetector=event_detector.__class__.__name__,
+                                               eventDetectorParams=repr(event_detector),
+                                               stateDetector=state_detector.__class__.__name__,
+                                               stateDetectorParams=repr(state_detector),
+                                               filterCutoff=cutoff, filterOrder=order )
+                elif self.load_from_json.checkState() == 2:
+                    print "herpples"
+                    if filename.endswith( "json" ):
+                        file = File.from_json( filename )
+                    else:
+                        file = File.from_json( filename+".json" )
+                else:
+                    raise Exception()
             except:
                 file = File( filename+".abf" ) # Create a file object for one of the input files
                 file.parse( parser=event_detector )
@@ -458,15 +507,18 @@ class DetectionWindow( Qt.QWidget ):
                         self.progressBar.setMaximum( len(filenames )*file.n )
                         Qt.qApp.processEvents()
                         time.sleep( 0.001 )
+            finally:
+                if self.metaAnalysis.checkState() == 2:
+                    file.to_meta()
+                if self.save_to_database.checkState() == 2:
+                    file.to_database( database=DATABASE, host=DATABASE_HOST,
+                                      password=DATABASE_PASSWORD,
+                                      user=DATABASE_USER )
+                if self.save_to_json.checkState() == 2:
+                    file.to_json( file.filename+".json" )
 
-            sample = smap[ sample_name ]
             files.append( file ) # Add that file to the list of files
             sample.add( file ) # Add the file to the appropriate sample
-
-            if self.save_to_database.checkState() == 2:
-                file.to_database( database=DATABASE, host=DATABASE_HOST,
-                                  password=DATABASE_PASSWORD,
-                                  user=DATABASE_USER )
 
             time.sleep( 0.001 )
             self.progressBar.setValue( i+1 )
@@ -476,6 +528,7 @@ class DetectionWindow( Qt.QWidget ):
                 break
 
             self.fileList.setItem( i, 2, Qt.QTableWidgetItem( str( file.n ) ) )
+            self.parent.input_files_n.append( file.n )
 
         # Create a list of references to all the events 
         events = np.concatenate( [ file.events for file in files ] )
@@ -489,7 +542,10 @@ class DetectionWindow( Qt.QWidget ):
             # Create an experiment that does not include state counts
             self.parent.experiment = Experiment( files=files, samples=samples, events=events ) 
 
-    def _output( self, style='text' ):
+    def _output( self ):
+        '''
+        Write out to a csv file all the data in an event, or a segment. 
+        '''
         exp = self.parent.experiment # Unpack the experiment    
         events = exp.get( "events" ) # Store references to all the events
         with open( "abada_event_data.csv", "w" ) as out:
@@ -602,6 +658,10 @@ class EventViewerWindow( Qt.QWidget ):
             self.parent.marked_event_indices.append( self.i )
 
     def _move( self, direction ):
+        '''
+        Moves the current event being shown in the direction specified. Must enter
+        direction as either -1 or 1. 
+        '''
         assert np.abs( direction ) == 1
         if ( self.i > 0 or direction == 1 ) and ( self.i < self.parent.experiment.event_count - 1 or direction == -1 ):
             self.i += direction
@@ -630,13 +690,11 @@ class EventViewerWindow( Qt.QWidget ):
 
             # If color was selected, and states are present in the event
             elif self.colorGroup.checkedId() == 1:
-                event.plot( color='k', alpha=0.3 )
                 event.plot( color='cycle', alpha=0.75 )
 
             # If color-by-hmm was selected, and states are present 
             elif self.colorGroup.checkedId() == 2:
                 hmm = hmm_factory[ str(self.hmmDropBox.currentText() ) ]
-                event.plot( color='k', alpha=0.3 )
                 event.plot( hmm=hmm, color='hmm' )
 
             plt.title( "Event {i}: in {filename} at {time}s".format( i = self.i+1, filename = event.file.filename, time = round(event.start, 2) ) )
@@ -644,8 +702,10 @@ class EventViewerWindow( Qt.QWidget ):
 
             self.eventFilename.setText( Qc.QString( event.file.filename ) )
             self.eventTime.setText( Qc.QString( str( round( event.start, 2 ) ) + " s" ) )
-            self.eventSample.setText( Qc.QString( event.sample.label ) )
-
+            try:
+                self.eventSample.setText( Qc.QString( event.sample.label ) )
+            except:
+                pass
             self.eventMean.setText( Qc.QString( str( round( event.mean, 2 ) ) + " pA" ) ) 
             self.eventDuration.setText( Qc.QString( str( round( event.duration, 2 ) ) + " s" ) )
             self.eventStateCount.setText( Qc.QString( str( event.n ) ) )
@@ -669,30 +729,32 @@ class AnalysisWindow( Qt.QWidget ):
 
         # Store the functions which gather statistical information as lambda expressions requiring
         # two keys to get to it-- the type and the statistical information. 
-        self.axes = { 'event': { 'Duration (s)': lambda exp: np.array([ event.duration for event in exp.get( "events", indices=self.parent.unmarked_event_indices ) ]), 
-                                 'Mean (pA)': lambda exp: np.array([ event.mean for event in exp.get( "events", indices=self.parent.unmarked_event_indices ) ]),
-                                 'State Count': lambda exp: np.array([ event.n for event in exp.get( "events", indices=self.parent.unmarked_event_indices ) ]),
-                                 'Count': None
-                               },
-                      'state': { 'Duration (s)': lambda exp: np.array([ state.duration for state in \
-                                                                        exp.get( "states", filter_attr="events", indices=self.parent.unmarked_event_indices ) ]),
-                                 'Mean (pA)': lambda exp: np.array([ state.mean for state in \
-                                                                     exp.get( "states", filter_attr="events", indices=self.parent.unmarked_event_indices ) ]),
-                                 'STD (pA)' : lambda exp: np.array([ state.std for state in \
-                                                                     exp.get( "states", filter_attr="events", indices=self.parent.unmarked_event_indices ) ]),
-                                 'Count': None
-                               },
-                      'hmm': {   'Duration (s)': lambda exp: np.array( [ state.duration \
-                                                                        for state in exp.apply_hmm( hmm=str(self.hmmDropBox.currentText()), 
-                                                                                                    indices=self.parent.unmarked_event_indices ) ] ),
-                                 'Mean (pA)': lambda exp: np.array( [ state.mean \
-                                                                        for state in exp.apply_hmm( hmm=str(self.hmmDropBox.currentText()), 
-                                                                                                    indices=self.parent.unmarked_event_indices ) ] ),
-                                 'STD (pA)' : lambda exp: np.array( [ state.std \
-                                                                        for state in exp.apply_hmm( hmm=str(self.hmmDropBox.currentText()), 
-                                                                                                    indices=self.parent.unmarked_event_indices ) ] ),
-                                 'Count': None
-                               }
+
+        unmarked = self.parent.unmarked_event_indices
+        hmm = str( self.hmmDropBox.currentText() )
+
+        events = exp.get( "events", indices=unmarked )
+        states = exp.get( "states", filter_attrs="events", indices=unmarked )
+        hmm_states = exp.apply_hmm( hmm=hmm, indices=unmarked )
+
+        self.axes = { 'event': { 
+                        'Duration (s)': lambda exp: np.array([event.duration for event in events]), 
+                        'Mean (pA)': lambda exp: np.array([event.mean for event in events]),
+                        'State Count': lambda exp: np.array([event.n for event in events]),
+                        'Count': None
+                        },
+                      'state': {
+                        'Duration (s)': lambda exp: np.array([state.duration for state in states]),
+                        'Mean (pA)': lambda exp: np.array([state.mean for state in states]),
+                        'STD (pA)' : lambda exp: np.array([state.std for state in states]),
+                        'Count': None
+                        },
+                      'hmm': {
+                        'Duration (s)': lambda exp: np.array([state.duration for state in hmm_states]),
+                        'Mean (pA)': lambda exp: np.array([state.mean for state in hmm_states]),
+                        'STD (pA)' : lambda exp: np.array([state.std for state in hmm_states]),
+                        'Count': None
+                        }
                     }
         grid = Qt.QGridLayout()
 
@@ -824,16 +886,18 @@ class AnalysisWindow( Qt.QWidget ):
 
         # If y-axis is count, create a vertical histogram
         elif yaxis == 'Count':
-            # Gather data
             try:
+                # Gather the x axis-- if it is the same axes as before, instead of recalculating
+                # each point, use the previously stored data. Otherwise calculate the points for
+                # the x axis. 
                 if last_datatype != datatype or last_xaxis != xaxis or last_yaxis != yaxis:
                     x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
-                else: # If everything is the same, load up the previously stored data
+                else: 
                     x = self.last_x
             except:
                 x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
             
-            # Color correctly
+            # Color the histogram according to if a single, or multiple, colors are given.
             if len(color) == 1:
                 self.subplot.hist( x, fc=color, alpha=0.3, bins=25, label = "Aggregate Data" )
             else:
@@ -844,10 +908,11 @@ class AnalysisWindow( Qt.QWidget ):
 
         # If not ploting histograms, plot a scatterplot
         else:
-            # Gather data
             try:
+                # Gather the x and y axis-- if it is the same axes as before, instead of
+                # recalculating them, use the previous x axis or y axis. This will speed
+                # up coloring options.
                 if last_datatype != datatype: 
-                    # Only call the lambda function if data type has been changed
                     if last_xaxis != xaxis:
                         x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
                     else:
@@ -860,7 +925,7 @@ class AnalysisWindow( Qt.QWidget ):
                 x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
                 y = self.axes[ datatype ][ yaxis ]( self.parent.experiment )
 
-            # Color correctly
+            # Color the histogram according to if a single, or multiple, colors are given.
             if len(color) == 1:
                 self.subplot.scatter( x, y, color=color, s=3, marker='o', label = "Aggregate Data"  )
             else:
@@ -901,7 +966,7 @@ class AnalysisWindow( Qt.QWidget ):
         states = exp.get( "states", filter_attr="events", indices=indices )
 
         # A 10 color color-cycle, assuming that there are only 10 possible groups
-        color_cycle = [ 'r', 'b', 'g', 'y', 'm', 'c', 'w', 'k', '0.25', '0.75' ]
+        color_cycle = [ 'r', 'b', 'g', 'm', 'c', 'w', 'k', 'y', '0.25', '0.75' ]
 
         # Uniform cyan, unless otherwise specified
         colors = 'c'
