@@ -285,13 +285,6 @@ class DetectionWindow( Qt.QWidget ):
         # Empty the widget
         self.fileList.setItem( 0, 0, Qt.QTableWidgetItem( "" ) )
 
-        try:
-            print parent.input_files
-            print parent.input_files_samples
-            print parent.input_files_n
-        except:
-            print "herp"
-
         for i in xrange( len( parent.input_files) ):
             try:
                 fileWidget = Qt.QTableWidgetItem( str( parent.input_files[i]))
@@ -484,7 +477,6 @@ class DetectionWindow( Qt.QWidget ):
                                                stateDetectorParams=repr(state_detector),
                                                filterCutoff=cutoff, filterOrder=order )
                 elif self.load_from_json.checkState() == 2:
-                    print "herpples"
                     if filename.endswith( "json" ):
                         file = File.from_json( filename )
                     else:
