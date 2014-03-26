@@ -413,7 +413,7 @@ class DetectionWindow( Qt.QWidget ):
                 file = str( self.fileList.item( i, 0 ).text() )
                 if file == '':
                     raise AttributeError
-                files.append( str( self.fileList.item( i, 0 ).text() ) )
+                files.append( str( self.fileList.item( i, 0 ).text() ).strip(".abf") )
                 try:
                     sample = str( self.fileList.item( i, 1 ).text() )
                     if sample == '':
@@ -614,7 +614,7 @@ class EventViewerWindow( Qt.QWidget ):
         grid.addWidget( hmmCheckBox, 7, 1 )
 
         self.hmmDropBox = Qt.QComboBox()
-        for key in hmm_factory.keys():
+        for key in self.parent.hmms.keys():
             self.hmmDropBox.addItem( key )
         grid.addWidget( self.hmmDropBox, 7, 2 )
 
@@ -693,7 +693,7 @@ class EventViewerWindow( Qt.QWidget ):
 
             # If color-by-hmm was selected, and states are present 
             elif self.colorGroup.checkedId() == 2:
-                hmm = hmm_factory[ str(self.hmmDropBox.currentText() ) ]
+                hmm = self.parent.hmms[ str(self.hmmDropBox.currentText() ) ]
                 event.plot( hmm=hmm, color='hmm' )
 
             plt.title( "Event {i}: in {filename} at {time}s".format( i=self.i+1, 
@@ -730,7 +730,7 @@ class AnalysisWindow( Qt.QWidget ):
             self.parent.unmarked_event_indices = [] 
 
         self.hmmDropBox = Qt.QComboBox()
-        for name in hmm_factory.keys():
+        for name in self.parent.hmms.keys():
             self.hmmDropBox.addItem( name )
 
         # Store the functions which gather statistical information as lambda expressions requiring
@@ -756,21 +756,21 @@ class AnalysisWindow( Qt.QWidget ):
             hmm_states = []
 
         self.axes = { 'event': { 
-                        'Duration (s)': lambda exp: np.array([event.duration for event in events]), 
-                        'Mean (pA)': lambda exp: np.array([event.mean for event in events]),
-                        'Segment Count': lambda exp: np.array([event.n for event in events]),
+                        'Duration (s)': np.array([event.duration for event in events]), 
+                        'Mean (pA)': np.array([event.mean for event in events]),
+                        'Segment Count': np.array([event.n for event in events]),
                         'Count': None
                         },
                       'segment': {
-                        'Duration (s)': lambda exp: np.array( [seg.duration for seg in segs] ),
-                        'Mean (pA)': lambda exp: np.array( [seg.mean for seg in segs]),
-                        'STD (pA)' : lambda exp: np.array( [seg.std for seg in segs] ),
+                        'Duration (s)': np.array( [seg.duration for seg in segs] ),
+                        'Mean (pA)': np.array( [seg.mean for seg in segs]),
+                        'STD (pA)' : np.array( [seg.std for seg in segs] ),
                         'Count': None
                         },
                       'hmm': {
-                        'Duration (s)': lambda exp: np.array([state.duration for state in hmm_states]),
-                        'Mean (pA)': lambda exp: np.array([state.mean for state in hmm_states]),
-                        'STD (pA)' : lambda exp: np.array([state.std for state in hmm_states]),
+                        'Duration (s)': np.array([state.duration for state in hmm_states]),
+                        'Mean (pA)': np.array([state.mean for state in hmm_states]),
+                        'STD (pA)' : np.array([state.std for state in hmm_states]),
                         'Count': None
                         }
                     }
@@ -888,11 +888,11 @@ class AnalysisWindow( Qt.QWidget ):
             # Gather data
             try:
                 if last_datatype != datatype or last_xaxis != xaxis or last_yaxis != yaxis:
-                    y = self.axes[ datatype ][ yaxis ]( self.parent.experiment )
+                    y = self.axes[ datatype ][ yaxis ]
                 else: # If everything is the same, load up the previously stored data
                     y = self.last_y
             except: # If some variables do not exist, then assume first round
-                y = self.axes[ datatype ][ yaxis ]( self.parent.experiment )
+                y = self.axes[ datatype ][ yaxis ]
             
             # Color correctly
             if len(color) == 1:
@@ -911,11 +911,11 @@ class AnalysisWindow( Qt.QWidget ):
                 # each point, use the previously stored data. Otherwise calculate the points for
                 # the x axis. 
                 if last_datatype != datatype or last_xaxis != xaxis or last_yaxis != yaxis:
-                    x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
+                    x = self.axes[ datatype ][ xaxis ]
                 else: 
                     x = self.last_x
             except:
-                x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
+                x = self.axes[ datatype ][ xaxis ]
             
             # Color the histogram according to if a single, or multiple, colors are given.
             if len(color) == 1:
@@ -934,16 +934,16 @@ class AnalysisWindow( Qt.QWidget ):
                 # up coloring options.
                 if last_datatype != datatype: 
                     if last_xaxis != xaxis:
-                        x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
+                        x = self.axes[ datatype ][ xaxis ]
                     else:
                         x = self.last_x
                     if last_yaxis != yaxis:
-                        y = self.axes[ datatype ][ yaxis ]( self.parent.experiment )
+                        y = self.axes[ datatype ][ yaxis ]
                     else:
                         y = self.last_y 
             except:
-                x = self.axes[ datatype ][ xaxis ]( self.parent.experiment )
-                y = self.axes[ datatype ][ yaxis ]( self.parent.experiment )
+                x = self.axes[ datatype ][ xaxis ]
+                y = self.axes[ datatype ][ yaxis ]
 
             # Color the histogram according to if a single, or multiple, colors are given.
             if len(color) == 1:
@@ -1014,8 +1014,19 @@ class AnalysisWindow( Qt.QWidget ):
         # Call plot again, giving an explicit color mapping
         self._plot( self.last_datatype, colors )
 
+# ALIGNMENT HAS BEEN TAKEN OUT WHILE ITS USE IS EVALUATED.
+"""
 class AlignmentWindow( Qt.QWidget ):
+    '''
+    Allows you to align multiple events to a model in a time-dependent
+    alignment. It is not particularly useful at this point.
+    '''
+
     def __init__( self, parent ):
+        '''
+        Set up the original window.
+        '''
+
         super( AlignmentWindow, self ).__init__( parent )
         self.parent = parent
         try:
@@ -1076,7 +1087,107 @@ class AlignmentWindow( Qt.QWidget ):
                                                                                  score=score ))
         self.score.setText(str(round(self.alignment.score,4)))
         self.canvas.draw()
+"""
+class HMMImportWindow( Qt.QWidget ):
+    '''
+    Allows you to import a HMM from a text file, and specify a few ways of
+    making the model.
+    '''
 
+    def __init__( self, parent ):
+        '''
+        Set up the import window.
+        '''
+        
+        super( HMMImportWindow, self ).__init__( parent )
+        self.parent = parent
+
+        self.fig = plt.figure( facecolor='w', edgecolor='w' )
+        self.canvas = FigureCanvas( self.fig )
+        self.canvas.setParent( self )
+        self.toolbar = NavigationToolbar( self.canvas, self )
+        self.subplot = self.fig.add_subplot( 111 )
+
+        grid = Qt.QGridLayout()
+
+        self.hmmFile = Qt.QLineEdit()
+        importButton = Qt.QPushButton( "Import HMM" )
+        self.connect( importButton, Qc.SIGNAL("clicked()"), self._import )
+        grid.addWidget( Qt.QLabel( "HMM File: " ), 0, 1 )
+        grid.addWidget( self.hmmFile, 0, 2, 1, 2 )
+        grid.addWidget( importButton, 2, 0 )
+        grid.addWidget( Qt.QLabel( "Please use full path (e.g. 'C:\Users\jmschrei\Desktop\hmm.txt') "), 0, 4 )
+
+        self.model = Qt.QButtonGroup()
+        phi29 = Qt.QRadioButton( "Phi29 Model" )
+        hel308 = Qt.QRadioButton( "Hel308 Model" )
+        self.model.addButton( phi29, 0 )
+        self.model.addButton( hel308, 1 )
+
+        grid.addWidget( phi29, 0, 0 )
+        grid.addWidget( hel308, 1, 0 )
+        grid.addWidget( Qt.QLabel( "HMM Name: " ), 1, 1 )
+
+        self.name = Qt.QLineEdit()
+        self.name.setText( "Test HMM" )
+        grid.addWidget( self.name, 1, 2, 1, 2 )
+
+        grid.addWidget( self.canvas, 3, 0, 20, 10 )
+        grid.addWidget( self.toolbar, 23, 0, 1, 10 )
+
+        self.setLayout( grid )
+
+    def _import( self ):
+        '''
+        Organizes everything which occurs when the import button is hit. Builds a new HMM
+        and sticks it to the parent HMM dictionary.
+        '''
+
+        i = self.model.checkedId()
+        name = self.name.text()
+        distributions = self._read( self.hmmFile.text() )
+
+        hmm = ( Phi29ProfileHMM, Hel308ProfileHMM )[ i ]( distributions, name=str(name) )
+        self.parent.hmms[ str(name) ] = hmm
+        self._draw_hmm( distributions )
+
+    def _read( self, filename ):
+        '''
+        Reads in a properly formatted HMM generation file. All files must be line separated
+        distribution objects of proper python syntax, such as the following:
+
+
+        # This file stores the distributions of construct X
+        # Contact: Jacob Schreiber
+        #          jmschreiber@gmail.com
+
+        NormalDistribution( 4, 2 )
+        NormalDistribution( 2, 7 )
+        NormalDistribution( 2, 3 )
+        InverseGammaDistribution( 1, 0.5 )
+        GaussianKernelDensity( [ 0.4, 0.6, 0.3, 0.2, 0.6 ], bandwidth=0.5 )
+        GaussianKernelDensity( [ 6, 7, 6, 6.5, 6.4, 7.2, 4.1 ], bandwidth=0.1 )
+        LambdaDistribution( lambda x: 4 <= x <= 6 )
+        '''
+
+        with open( filename, 'r' ) as infile:
+            return map( eval, filter( lambda line: not line.startswith( '#' ), infile ) )
+
+    def _draw_hmm( self, distributions ):
+        '''
+        Draw an example of the consensus event.
+        '''
+        plt.title( "Probability Map For {}".format( str(self.name.text()) ) )
+        plt.ylabel( "pA" )
+        plt.xlabel( "Index" )
+        view = np.arange( 0, 120, .05 )
+
+        for i, distribution in enumerate( distributions ):
+            density = np.exp( map( distribution.log_probability, view ) )
+            for v, d in zip( view, density ):
+                if d > .01:
+                    self.subplot.plot( [i, i+1], [v, v], c='b', linewidth=2, alpha=d )
+        self.canvas.draw() 
 
 class MainPage( Qt.QMainWindow ):
     '''
@@ -1091,7 +1202,8 @@ class MainPage( Qt.QMainWindow ):
         self.marked_event_indices = []
         self.unmarked_event_indices = []
         self.saved_files = []
-        self.input_files = [] 
+        self.input_files = []
+        self.hmms = hmm_factory
 
         self.setGeometry( 300, 300, 800, 500 )
         self.currentWindow = Logo( self )
@@ -1113,16 +1225,22 @@ class MainPage( Qt.QMainWindow ):
         analysisViewer.setStatusTip( 'Analysis Viewer' )
         analysisViewer.triggered.connect( lambda: self.setCentralWidget( AnalysisWindow( self ) ) )
 
-        alignerViewer = Qt.QAction( Qt.QIcon( r'thumbs\align.png' ), 'Alignment Viewer', self )
-        alignerViewer.setStatusTip( 'Alignment Viewer' )
-        alignerViewer.triggered.connect( lambda: self.setCentralWidget( AlignmentWindow( self ) ) )
+        # ALIGNMENT HAS BEEN TAKEN OUT WHILE ITS USE IS EVALUATED.
+        #alignerViewer = Qt.QAction( Qt.QIcon( r'thumbs\align.png' ), 'Alignment Viewer', self )
+        #alignerViewer.setStatusTip( 'Alignment Viewer' )
+        #alignerViewer.triggered.connect( lambda: self.setCentralWidget( AlignmentWindow( self ) ) )
+
+        hmmViewer = Qt.QAction( Qt.QIcon( r'thumbs\hmm.png' ), 'HMM Importer', self )
+        hmmViewer.setStatusTip( 'HMM Importer' )
+        hmmViewer.triggered.connect( lambda: self.setCentralWidget( HMMImportWindow( self ) ) )
 
         toolbar = self.addToolBar('Exit')
         toolbar.addAction( chenooViewer )
         toolbar.addAction( detectionViewer )
         toolbar.addAction( eventViewer ) 
         toolbar.addAction( analysisViewer )
-        toolbar.addAction( alignerViewer )
+        #toolbar.addAction( alignerViewer )
+        toolbar.addAction( hmmViewer )
                 
         self.setToolTip('Abada: The PyPore Data Analysis Pipeline')
         self.setWindowTitle('Abada')
