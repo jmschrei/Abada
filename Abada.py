@@ -1160,7 +1160,6 @@ class HMMImportWindow( Qt.QWidget ):
         # This file stores the distributions of construct X
         # Contact: Jacob Schreiber
         #          jmschreiber@gmail.com
-
         NormalDistribution( 4, 2 )
         NormalDistribution( 2, 7 )
         NormalDistribution( 2, 3 )
@@ -1177,6 +1176,7 @@ class HMMImportWindow( Qt.QWidget ):
         '''
         Draw an example of the consensus event.
         '''
+        plt.cla()
         plt.title( "Probability Map For {}".format( str(self.name.text()) ) )
         plt.ylabel( "pA" )
         plt.xlabel( "Index" )
