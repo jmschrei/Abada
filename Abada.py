@@ -516,7 +516,7 @@ class DetectionWindow( Qt.QWidget ):
                     file.to_json( file.filename+".json" )
 
             files.append( file ) # Add that file to the list of files
-            sample.add( file ) # Add the file to the appropriate sample
+            sample.files.append( file ) # Add the file to the appropriate sample
 
             time.sleep( 0.001 )
             self.progressBar.setValue( i+1 )
@@ -527,25 +527,15 @@ class DetectionWindow( Qt.QWidget ):
             if not self._active:
                 break
 
-        # Create a list of references to all the events 
-        events = np.concatenate( [ file.events for file in files ] )
-
-        try: # If a segmenter was selected
-            # Create a list of references to all the segments
-            segments = np.concatenate( [ event.segments for event in events ] )
-            # Create an experiment that inc   ludes state counts
-            self.parent.experiment = Experiment( files=files, samples=samples, 
-                                                events=events, segments=segments )
-        except:
-            # Create an experiment that does not include state counts
-            self.parent.experiment = Experiment( files=files, samples=samples, events=events ) 
+        self.parent.experiment = Experiment( filenames=[] )
+        self.parent.experiment.files = files
 
     def _output( self ):
         '''
         Write out to a csv file all the data in an event, or a segment. 
         '''
         exp = self.parent.experiment # Unpack the experiment    
-        events = exp.get( "events" ) # Store references to all the events
+        events = exp.events # Store references to all the events
         with open( "abada_event_data.csv", "w" ) as out:
             # Write a csv file out that contains all the data
             out.write( "Filename,Sample,Start,Mean (pA),STD,Duration (s),Segment Count\n")
@@ -559,7 +549,7 @@ class DetectionWindow( Qt.QWidget ):
                                     duration=event.duration,
                                     segs=event.n ) )
 
-        segments = exp.get( "segments" ) # Store references to all the states
+        segments = exp.segments # Store references to all the states
         with open( "abada_segment_data.csv", "w" ) as out:
             # Write a csv file that contains all states 
             out.write( "Filename,Sample,Mean (pA),Start,STD,Duration (s)\n")
@@ -576,7 +566,7 @@ class EventViewerWindow( Qt.QWidget ):
     def __init__( self, parent ):
         super( EventViewerWindow, self ).__init__( parent )
         self.parent = parent
-        self.events = self.parent.experiment.get( "events" )
+        self.events = self.parent.experiment.events
         grid = Qt.QGridLayout()
         grid.setVerticalSpacing(0)
         self.i = -1
@@ -661,7 +651,7 @@ class EventViewerWindow( Qt.QWidget ):
         direction as either -1 or 1. 
         '''
         assert np.abs( direction ) == 1
-        n = self.parent.experiment.event_count
+        n = len( self.parent.experiment.events )
         if ( self.i > 0 or direction == 1 ) and ( self.i < n - 1 or direction == -1 ):
             self.i += direction
         self._plot()
@@ -723,7 +713,7 @@ class AnalysisWindow( Qt.QWidget ):
         self.parent = parent
         self.last_datatype = None # Store the last attempt to plot, in case only recoloring is needed
         try: # Find indices which are unmarked by reversing the marked list
-            n = self.parent.experiment.event_count
+            n = len( self.parent.experiment.events ) 
             self.parent.unmarked_event_indices = [ i for i in xrange( n ) 
                                                    if i not in self.parent.marked_event_indices ]
         except: # If no marked list exists, or no experiment exists, do not plot anything
@@ -741,19 +731,14 @@ class AnalysisWindow( Qt.QWidget ):
 
         exp = self.parent.experiment
         try:
-            events = exp.get( "events", indices=unmarked )
+            events = [ event for i, event in enumerate( exp.events ) if i in unmarked ]
         except:
             events = []
 
         try:
-            segs = exp.get( "segments", filter_attr="events", indices=unmarked )
+            segs = reduce( list.__add__, [ event.segments for event in events ] )
         except:
             segs = []
-
-        try:
-            hmm_states = exp.apply_hmm( hmm=hmm, indices=unmarked )
-        except:
-            hmm_states = []
 
         self.axes = { 'event': { 
                         'Duration (s)': np.array([event.duration for event in events]), 
@@ -765,12 +750,6 @@ class AnalysisWindow( Qt.QWidget ):
                         'Duration (s)': np.array( [seg.duration for seg in segs] ),
                         'Mean (pA)': np.array( [seg.mean for seg in segs]),
                         'STD (pA)' : np.array( [seg.std for seg in segs] ),
-                        'Count': None
-                        },
-                      'hmm': {
-                        'Duration (s)': np.array([state.duration for state in hmm_states]),
-                        'Mean (pA)': np.array([state.mean for state in hmm_states]),
-                        'STD (pA)' : np.array([state.std for state in hmm_states]),
                         'Count': None
                         }
                     }
@@ -785,11 +764,6 @@ class AnalysisWindow( Qt.QWidget ):
         self.segment_xaxis = self._init_axis( plot_type='segment' )
         self.segment_yaxis = self._init_axis( plot_type='segment' )
         self.segment_display = Qt.QPushButton( "Plot!" )
-
-        # Initiate the HMM plotting dropdown boxes 
-        self.hmm_xaxis = self._init_axis( plot_type='hmm' )
-        self.hmm_yaxis = self._init_axis( plot_type='hmm' )
-        self.hmm_display = Qt.QPushButton( "Plot!" )
 
         self.fig = plt.figure( facecolor = 'w', edgecolor = 'w' )
         self.canvas = FigureCanvas( self.fig )
@@ -815,16 +789,6 @@ class AnalysisWindow( Qt.QWidget ):
 
         grid.addWidget( Divider(), 11, 5, 1, 5 )
 
-        grid.addWidget( Qt.QLabel( "Plot HMM States" ), 12, 6 )
-        grid.addWidget( Qt.QLabel( "HMM:" ), 13, 6 )
-        grid.addWidget( self.hmmDropBox, 13, 7 )
-
-        grid.addWidget( Qt.QLabel( "X Axis: " ), 14, 6 )
-        grid.addWidget( Qt.QLabel( "Y Axis: " ), 15, 6 )
-        grid.addWidget( self.hmm_xaxis, 14, 7 )
-        grid.addWidget( self.hmm_yaxis, 15, 7 )
-        grid.addWidget( self.hmm_display, 16, 7 )
-
         grid.addWidget( Divider(), 18, 5, 1, 5 )
         grid.addWidget( Qt.QLabel( "Color By:" ), 19, 5 )
         self.colorByDropdown = Qt.QComboBox()
@@ -840,8 +804,6 @@ class AnalysisWindow( Qt.QWidget ):
                         lambda: self._plot( datatype = 'event' ) )
         self.connect( self.segment_display, Qc.SIGNAL( "clicked()" ), \
                         lambda: self._plot( datatype = 'segment' ) )
-        self.connect( self.hmm_display, Qc.SIGNAL( "clicked()" ), 
-                        lambda: self._plot( datatype = 'hmm' ) )
 
         grid.addWidget( self.canvas, 0, 0, 25, 5 )
         grid.addWidget( self.toolbar, 25, 0, 1, 5 )
@@ -982,8 +944,8 @@ class AnalysisWindow( Qt.QWidget ):
         # Set up references to stored data to make calls less long
         exp = self.parent.experiment
         indices = self.parent.unmarked_event_indices
-        events = exp.get( "events", indices=indices )
-        segments = exp.get( "segments", filter_attr="events", indices=indices )
+        events = [ event for i, event in enumerate( exp.events ) if i in indices ]
+        segments = reduce( list.__add__, [ event.segments for event in events ] )
 
         # A 10 color color-cycle, assuming that there are only 10 possible groups
         color_cycle = [ 'r', 'b', 'g', 'm', 'c', 'w', 'k', 'y', '0.25', '0.75' ]
@@ -993,7 +955,7 @@ class AnalysisWindow( Qt.QWidget ):
 
         # If they select the filename grouping..
         if color_scheme == 'Filename':
-            files = exp.get( "files" )
+            files = exp.files
             cmap = { file.filename: color_cycle[i%len(color_cycle)+1] for i, file in enumerate( files ) }
             self.lmap = { value: key for key, value in cmap.items() }
             if self.last_datatype == 'event':
@@ -1003,7 +965,7 @@ class AnalysisWindow( Qt.QWidget ):
 
         # If the user selects the sample grouping..
         elif color_scheme == 'Sample':
-            samples = exp.get( "samples" )
+            samples = exp.samples
             cmap = { sample.label: color_cycle[i] for i, sample in enumerate( samples ) }
             self.lmap = { value: key for key, value in cmap.items() }
             if self.last_datatype == 'event':
@@ -1014,80 +976,6 @@ class AnalysisWindow( Qt.QWidget ):
         # Call plot again, giving an explicit color mapping
         self._plot( self.last_datatype, colors )
 
-# ALIGNMENT HAS BEEN TAKEN OUT WHILE ITS USE IS EVALUATED.
-"""
-class AlignmentWindow( Qt.QWidget ):
-    '''
-    Allows you to align multiple events to a model in a time-dependent
-    alignment. It is not particularly useful at this point.
-    '''
-
-    def __init__( self, parent ):
-        '''
-        Set up the original window.
-        '''
-
-        super( AlignmentWindow, self ).__init__( parent )
-        self.parent = parent
-        try:
-            exp = self.parent.experiment
-            ind = self.parent.unmarked_event_indices
-            self.events = exp.get( "events", indices=ind )
-            self.alignment = MultipleEventAlignment( self.events )
-        except:
-            pass
-
-        self.fig = plt.figure( facecolor='w', edgecolor='w' )
-        self.canvas = FigureCanvas( self.fig )
-        self.canvas.setParent( self )
-        self.toolbar = NavigationToolbar( self.canvas, self )
-        grid = Qt.QGridLayout()
-
-        alignButton = Qt.QPushButton( "Align" )
-        self.connect( alignButton, Qc.SIGNAL("clicked()"), self._align )
-
-        self.score = Qt.QLabel("0.0000")
-        self.model_id = Qt.QLineEdit()
-
-        self.backslip = Qt.QLineEdit()
-        self.backslip.setText( "0.1" )
-        self.skip = Qt.QLineEdit()
-        self.skip.setText( "0.01" )
-
-        grid.addWidget( self.canvas, 0, 0, 20, 10 )
-        grid.addWidget( self.toolbar, 20, 0, 1, 10 )
-
-        grid.addWidget( alignButton, 21, 0 )
-        grid.addWidget( Qt.QLabel( "Model ID" ), 21, 1 )
-        grid.addWidget( self.model_id, 21, 2 )
-
-        grid.addWidget( Qt.QLabel("Backslip Penalty:"), 21, 3)
-        grid.addWidget( self.backslip, 21, 4)
-        grid.addWidget( Qt.QLabel("Skip Penalty:"), 21, 5 )
-        grid.addWidget( self.skip, 21, 6)
-
-        grid.addWidget( Qt.QLabel("Score:"), 21, 8)
-        grid.addWidget( self.score, 21, 9 )
-        self.setLayout( grid )
-
-    def _align( self ):
-        '''
-        Create and use a MultipleEventAlignment module in order to align the events,
-        in a one-vs-all strategy where the model is determined by the user input.
-        Currently only supports a semi-local alignment. 
-        '''
-        self.fig.clf()
-        skip = float(self.skip.text())
-        backslip = float(self.backslip.text())
-        model_id = int(self.model_id.text())
-        self.alignment.align( strategy='one-vs-all', model_id=model_id, skip=skip, backslip=backslip )
-        self.alignment.plot()
-        score = str(round(self.alignment.score, 4))
-        plt.title( "Alignment with Event {id} as Model-- Score: {score}".format( id=model_id, 
-                                                                                 score=score ))
-        self.score.setText(str(round(self.alignment.score,4)))
-        self.canvas.draw()
-"""
 class HMMImportWindow( Qt.QWidget ):
     '''
     Allows you to import a HMM from a text file, and specify a few ways of
@@ -1118,14 +1006,6 @@ class HMMImportWindow( Qt.QWidget ):
         grid.addWidget( importButton, 2, 0 )
         grid.addWidget( Qt.QLabel( "Please use full path (e.g. 'C:\Users\jmschrei\Desktop\hmm.txt') "), 0, 4 )
 
-        self.model = Qt.QButtonGroup()
-        phi29 = Qt.QRadioButton( "Phi29 Model" )
-        hel308 = Qt.QRadioButton( "Hel308 Model" )
-        self.model.addButton( phi29, 0 )
-        self.model.addButton( hel308, 1 )
-
-        grid.addWidget( phi29, 0, 0 )
-        grid.addWidget( hel308, 1, 0 )
         grid.addWidget( Qt.QLabel( "HMM Name: " ), 1, 1 )
 
         self.name = Qt.QLineEdit()
@@ -1143,11 +1023,13 @@ class HMMImportWindow( Qt.QWidget ):
         and sticks it to the parent HMM dictionary.
         '''
 
-        i = self.model.checkedId()
         name = self.name.text()
         distributions = self._read( self.hmmFile.text() )
 
-        hmm = ( Phi29ProfileHMM, Hel308ProfileHMM )[ i ]( distributions, name=str(name) )
+        hmm = ModularProfileModel( NanoporeGlobalAlignmentModule, 
+                                   distributions, 
+                                   str(name), 
+                                   insert=UniformDistribution(0,100) )
         self.parent.hmms[ str(name) ] = hmm
         self._draw_hmm( distributions )
 
@@ -1198,7 +1080,7 @@ class MainPage( Qt.QMainWindow ):
     '''
     def __init__( self ):
         super( MainPage, self ).__init__()
-        self.experiment = Experiment()
+        self.experiment = Experiment( filenames=[] )
         self.marked_event_indices = []
         self.unmarked_event_indices = []
         self.saved_files = []
